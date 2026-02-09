@@ -1,0 +1,19 @@
+{
+  "name": "orion-api",
+  "version": "1.0.0",
+  "description": "Orion app's api",
+  "repository": {
+    "type": "git",
+    "url": "orion-api"
+  },
+  "license": "ISC",
+  "author": "Fuxlor",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "debug"
+  },
+  "dependencies": {
+    "express": "^5.2.1"
+  }
+}
