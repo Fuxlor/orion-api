@@ -1,5 +1,6 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import jwt from 'jsonwebtoken';
+import { getPublicKey } from '../crypto/keys.js';
 import { JWTPayload } from '../types/index.js';
 
 // Étendre le type FastifyRequest pour inclure user
@@ -26,13 +27,11 @@ export const authenticate = async (
 
     const token = authHeader.substring(7); // Enlever "Bearer "
 
-    // Vérifier le token
-    const secret = process.env.JWT_SECRET;
-    if (!secret) {
-      throw new Error('JWT_SECRET not configured');
-    }
-
-    const decoded = jwt.verify(token, secret) as JWTPayload;
+    // Vérifier le token avec la clé PUBLIQUE
+    const publicKey = getPublicKey();
+    const decoded = jwt.verify(token, publicKey, {
+      algorithms: ['RS256']  // Seulement RS256 accepté
+    }) as JWTPayload;
     
     // Attacher l'utilisateur à la requête
     request.user = decoded;

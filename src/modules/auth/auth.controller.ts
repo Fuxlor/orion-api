@@ -8,13 +8,20 @@ export const authController = {
     reply: FastifyReply
   ) {
     try {
-      const { email, password } = request.body;
+      const { firstName, lastName, pseudo, email, password } = request.body;
 
       // Validation basique
       if (!email || !password) {
         return reply.status(400).send({
           error: 'Validation Error',
           message: 'Email and password are required'
+        });
+      }
+
+      if (!firstName || !lastName || !pseudo) {
+        return reply.status(400).send({
+          error: 'Validation Error',
+          message: 'First name, last name and pseudo are required'
         });
       }
 
@@ -25,11 +32,16 @@ export const authController = {
         });
       }
 
-      const result = await authService.register({ email, password });
+      const result = await authService.register({ firstName, lastName, pseudo, email, password });
       
       return reply.status(201).send(result);
     } catch (error) {
       if (error instanceof Error && error.message === 'Email already exists') {
+        return reply.status(409).send({
+          error: 'Conflict',
+          message: error.message
+        });
+      } else if (error instanceof Error && error.message === 'Pseudo already exists') {
         return reply.status(409).send({
           error: 'Conflict',
           message: error.message

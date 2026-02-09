@@ -2,9 +2,9 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import dotenv from 'dotenv';
 import { authRoutes } from './modules/auth/auth.routes.js';
-import { usersRoutes } from './modules/users/users.routes.js';
 import { errorHandler } from './shared/middlewares/errorHandler.js';
 import { db } from './shared/database/db.js';
+import { loadKeys } from './shared/crypto/keys.js';
 
 dotenv.config();
 
@@ -35,11 +35,13 @@ fastify.get('/health', async () => {
 
 // Register routes
 fastify.register(authRoutes, { prefix: '/api/auth' });
-fastify.register(usersRoutes, { prefix: '/api/users' });
 
 // Start server
 const start = async () => {
   try {
+    // Load RSA keys
+    loadKeys();
+    
     // Test database connection
     await db.query('SELECT NOW()');
     fastify.log.info('Database connected');

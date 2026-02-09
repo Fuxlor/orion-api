@@ -2,32 +2,16 @@ export interface User {
   id: number;
   email: string;
   password_hash: string;
+  first_name: string;
+  last_name: string;
+  pseudo: string;
   created_at: Date;
   updated_at: Date;
-}
-
-export interface Role {
-  id: number;
-  name: string;
-  description: string;
-}
-
-export interface Permission {
-  id: number;
-  name: string;
-  resource: string;
-  action: string;
-}
-
-export interface UserWithRoles extends Omit<User, 'password_hash'> {
-  roles: Role[];
-  permissions: Permission[];
 }
 
 export interface JWTPayload {
   userId: number;
   email: string;
-  roles: string[];
 }
 
 export interface AuthTokens {
@@ -41,6 +25,9 @@ export interface LoginRequest {
 }
 
 export interface RegisterRequest {
+  firstName: string;
+  lastName: string;
+  pseudo: string;
   email: string;
   password: string;
 }

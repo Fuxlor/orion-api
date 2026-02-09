@@ -1,6 +1,7 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { db } from '../../shared/database/db.js';
+import { getPrivateKey, getPublicKey } from '../../shared/crypto/keys.js';
 import { 
   User, 
   AuthTokens, 
@@ -24,37 +25,40 @@ export const authService = {
       throw new Error('Email already exists');
     }
 
+    const existingPseudo = await db.query(
+      'SELECT id FROM users WHERE pseudo = $1',
+      [data.pseudo]
+    );
+
+    if (existingPseudo.rows.length > 0) {
+      throw new Error('Pseudo already exists');
+    }
     // Hash le mot de passe
     const passwordHash = await bcrypt.hash(data.password, SALT_ROUNDS);
 
     // Créer l'utilisateur
     const result = await db.query<User>(
-      `INSERT INTO users (email, password_hash)
-       VALUES ($1, $2)
-       RETURNING id, email, created_at, updated_at`,
-      [data.email, passwordHash]
+      `INSERT INTO users (first_name, last_name, pseudo, email, password_hash)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, first_name, last_name, pseudo, email, created_at, updated_at`,
+      [data.firstName, data.lastName, data.pseudo, data.email, passwordHash]
     );
 
     const user = result.rows[0];
 
-    // Assigner le rôle 'user' par défaut
-    await db.query(
-      `INSERT INTO user_roles (user_id, role_id)
-       SELECT $1, id FROM roles WHERE name = 'user'`,
-      [user.id]
-    );
-
-    // Générer token
+    // Générer token (signé avec clé PRIVÉE)
     const accessToken = this.generateToken({
       userId: user.id,
       email: user.email,
-      roles: ['user']
     });
 
     return {
       accessToken,
       user: {
         id: user.id,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        pseudo: user.pseudo,
         email: user.email,
         created_at: user.created_at,
         updated_at: user.updated_at
@@ -64,15 +68,11 @@ export const authService = {
 
   // Login user
   async login(data: LoginRequest): Promise<AuthTokens> {
-    // Récupérer l'utilisateur avec ses rôles
-    const result = await db.query<User & { roles: string[] }>(
-      `SELECT u.id, u.email, u.password_hash, u.created_at, u.updated_at,
-              ARRAY_AGG(r.name) as roles
-       FROM users u
-       LEFT JOIN user_roles ur ON u.id = ur.user_id
-       LEFT JOIN roles r ON ur.role_id = r.id
-       WHERE u.email = $1
-       GROUP BY u.id`,
+    // Récupérer l'utilisateur
+    const result = await db.query<User>(
+      `SELECT id, first_name, last_name, pseudo, email, password_hash, created_at, updated_at
+       FROM users
+       WHERE email = $1`,
       [data.email]
     );
 
@@ -89,17 +89,19 @@ export const authService = {
       throw new Error('Invalid credentials');
     }
 
-    // Générer token
+    // Générer token (signé avec clé PRIVÉE)
     const accessToken = this.generateToken({
       userId: user.id,
-      email: user.email,
-      roles: user.roles || []
+      email: user.email
     });
 
     return {
       accessToken,
       user: {
         id: user.id,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        pseudo: user.pseudo,
         email: user.email,
         created_at: user.created_at,
         updated_at: user.updated_at
@@ -107,25 +109,22 @@ export const authService = {
     };
   },
 
-  // Générer JWT token
-  generateToken(payload: JWTPayload): string {
-    const secret = process.env.JWT_SECRET;
-    if (!secret) {
-      throw new Error('JWT_SECRET not configured');
-    }
+  // Générer JWT token avec clé PRIVÉE (RS256)
+  generateToken(payload: string | Buffer | object): string {
+    const privateKey = getPrivateKey();
 
-    return jwt.sign(payload, secret, {
+    return jwt.sign(payload, privateKey, {
+      algorithm: 'RS256',  // Asymétrique (au lieu de HS256)
       expiresIn: process.env.JWT_EXPIRES_IN || '7d'
-    });
+    } as jwt.SignOptions);
   },
 
-  // Vérifier token
+  // Vérifier token avec clé PUBLIQUE (RS256)
   verifyToken(token: string): JWTPayload {
-    const secret = process.env.JWT_SECRET;
-    if (!secret) {
-      throw new Error('JWT_SECRET not configured');
-    }
+    const publicKey = getPublicKey();
 
-    return jwt.verify(token, secret) as JWTPayload;
+    return jwt.verify(token, publicKey, {
+      algorithms: ['RS256']  // Seulement RS256 accepté
+    }) as JWTPayload;
   }
 };
